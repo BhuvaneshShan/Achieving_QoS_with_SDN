@@ -42,7 +42,7 @@ class ExpTopo(Topo):
         self.addLink(s5, s6)
 
 
-def printTopology():
+def startTopology():
     net = None
     try:
         # Create and test a simple network
@@ -65,4 +65,4 @@ def printTopology():
 
 if __name__ == '__main__':
     setLogLevel('info')
-    printTopology()
+    startTopology()
