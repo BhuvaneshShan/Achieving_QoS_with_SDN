@@ -1,11 +1,10 @@
 import logging
 
-from mininet.topo import Topo
-from mininet.net import Mininet
-from mininet.util import dumpNodeConnections
-from mininet.log import setLogLevel
 from mininet.cli import CLI
-
+from mininet.log import setLogLevel
+from mininet.net import Mininet
+from mininet.topo import Topo
+from mininet.util import dumpNodeConnections
 
 LOG = logging.getLogger(__name__);
 
@@ -13,7 +12,7 @@ class ExpTopo(Topo):
     # override the super class abstract method
     def build(self, *args, **kwargs):
         # create hosts
-        h1 = self.addHost('h1')
+        h1 = self.addHost('h1',cpu=0.25)
         h2 = self.addHost('h2')
         h3 = self.addHost('h3')
         h4 = self.addHost('h4')
@@ -28,7 +27,7 @@ class ExpTopo(Topo):
         s6 = self.addSwitch('s6')
 
         # add links
-        self.addLink(s1, h1)
+        self.addLink(s1, h1,bw=10,delay='5ms')
         self.addLink(s2, h2)
         self.addLink(s3, h3)
         self.addLink(s4, h4)
@@ -47,7 +46,7 @@ def startTopology():
     try:
         # Create and test a simple network
         topo = ExpTopo()
-        net = Mininet(topo)
+        net = Mininet(topo = topo)
         net.start()
         print "Dumping host connections"
         dumpNodeConnections(net.hosts)
@@ -59,7 +58,7 @@ def startTopology():
 
     except Exception as e:
         LOG.error(e.message)
-        net.cleanup
+        #net.stop()
 
 
 
