@@ -5,7 +5,7 @@ LOG_SETTINGS = {
     'disable_existing_loggers':False,
     'formatters':{
         'verbose':{
-            'format':'%(levelname)s %(asctime)s %(modules)s %(thread)d %(message)s'
+            'format':'%(levelname)s %(asctime)s %(thread)d %(message)s'
         },
     },
     'handlers':{
@@ -18,6 +18,11 @@ LOG_SETTINGS = {
         'gatech':{
             'handlers':['console'],
             'level':'DEBUG',
+            'propagate':False,
+        },
+        'minient':{
+            'handlers':['console'],
+            'level':'INFO',
             'propagate':False,
         }
     }
