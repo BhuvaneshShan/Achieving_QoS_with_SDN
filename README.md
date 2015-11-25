@@ -9,4 +9,4 @@ it becomes a ring. Right now its a six switch six host linear topology
 ## Test topology
 
 
-sudo python topology.py
+sudo python -m gatech.main

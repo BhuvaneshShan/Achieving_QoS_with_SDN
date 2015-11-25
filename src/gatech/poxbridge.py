@@ -7,16 +7,10 @@ from mininet.node import Controller
 
 
 class PoxBridge(Controller):
-
-    pox_file = None;
-
-    def __init__(self,pox_script_name):
-        self.pox_file = pox_script_name
-
     def start(self):
         "Start POX learning switch"
         self.pox = '%s/pox/pox.py' % os.environ[ 'HOME' ]
-        self.cmd( self.pox, self.pox_file % ' &' )
+        self.cmd( self.pox, 'forwarding.l2_learning &' )
 
 
     def stop(self, *args, **kwargs):
