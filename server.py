@@ -28,11 +28,14 @@ while True:
    c, addr = s.accept()     
    print 'Got connection from', addr
    data = c.recv(6000)
+   """
    data=data.split(' ')
    print 'bw is ', data[0], 'timer is ',data[1]
    # send a thank you message to the client. 
    time.sleep(5)
-   c.send('Thank you for connecting')
+   """
+   print data
+   #c.send('Thank you for connecting')
    # Close the connection with the client
    c.close()                
 
