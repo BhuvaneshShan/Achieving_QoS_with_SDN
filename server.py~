@@ -1,6 +1,6 @@
 # first of all import the socket library
 import socket               
-
+import time
 # next create a socket object
 s = socket.socket()         
 print "Socket successfully created"
@@ -31,7 +31,7 @@ while True:
    data=data.split(' ')
    print 'bw is ', data[0], 'timer is ',data[1]
    # send a thank you message to the client. 
-   sleep(5)
+   time.sleep(5)
    c.send('Thank you for connecting')
    # Close the connection with the client
    c.close()                
