@@ -15,6 +15,12 @@ arguments and starts off your component (e.g., by listening to events).
 Edit this docstring and your launch function's docstring.  These will
 show up when used with the help component ("./pox.py help --mycomponent").
 """
+import BaseHTTPServer
+import SocketServer
+import json
+import threading
+from BaseHTTPServer import BaseHTTPRequestHandler
+
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.util import dpidToStr
@@ -141,3 +147,40 @@ def launch ():
 	reservation_matrix = [[FREE for x in range(0,queue_count)] for j in range(0,switch_count)]
 	core.openflow.addListenerByName("ConnectionUp", _handle_ConnectionUp)
 	core.openflow.addListenerByName("PacketIn", _handle_PacketIn)
+
+
+class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    # Handler for the GET request
+    def do_GET(self):
+
+        response = {}
+        response['reservation'] = 'OK'
+
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        #x = reserve_queue()
+
+        str = json.dumps(response)
+        print str
+        self.send_response(200)
+        self.wfile.write(str)
+
+        return
+
+
+"""
+The class is responsible for hosting the reservation
+service for clients.
+"""
+
+
+class ReservationServiceThread(threading.Thread):
+    SERVER_PORT = 6060
+
+    def __init__(self, group=None, target=None, name=None, args=(), kwargs=None, verbose=None):
+        super(ReservationServiceThread, self).__init__(group, target, name, args, kwargs, verbose)
+
+    def run(self):
+        print "starting reservation service. Listening on port %s",self.SERVER_PORT
+        httpd = BaseHTTPServer.HTTPServer(("", self.SERVER_PORT), MyHandler)
+        httpd.serve_forever();
