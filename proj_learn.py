@@ -42,6 +42,13 @@ MAX_BANDWIDTH = 10
 FREE = "free"
 
 def _handle_ConnectionUp (event):
+
+    print "starting the reservation http service"
+    reservationService = ReservationServiceThread()
+    reservationService.setDaemon(True);
+    reservationService.start();
+
+
 	print("Connection Up!")
 	pass
 
@@ -151,20 +158,43 @@ def launch ():
 
 class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     # Handler for the GET request
-    def do_GET(self):
+    def do_POST(self):
 
-        response = {}
-        response['reservation'] = 'OK'
+        response={}
+        #get the body of POST request
+        content_len = int(self.headers.getheader('content-length', 0))
+        post_body = self.rfile.read(content_len)
+        request = json.loads(post_body);
+        src_ip = request['src_ip']
+        dst_ip = request['dst_ip']
+        bandwidth = request['bandwidth']
 
         self.send_header('Content-type', 'application/json')
         self.end_headers()
-        #x = reserve_queue()
+
+        if src_ip == None | dst_ip == None | bandwidth | None:
+            #we give an eror response back
+            response['reservation'] = 'BAD_REQUEST'
+            str = json.dumps(response)
+            print str
+            self.send_response(200)
+            self.wfile.write(str)
+            return
+
+        bandwidth = int(bandwidth)
+        bool_value = new_Connection(src_ip,dst_ip,bandwidth)
+
+        if(bandwidth):
+             response['reservation'] = 'OK'
+
+        else:
+             response['reservation'] = 'FAILED'
+
 
         str = json.dumps(response)
         print str
         self.send_response(200)
         self.wfile.write(str)
-
         return
 
 
