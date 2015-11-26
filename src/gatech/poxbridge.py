@@ -5,9 +5,14 @@ import os
 
 from mininet.node import Controller
 
+from gatech.util import create_queues
+
 
 class PoxBridge(Controller):
     def start(self):
+
+        "create the queues using the convenience util function"
+        create_queues()
         "Start POX learning switch"
         self.pox = '%s/pox/pox.py' % os.environ[ 'HOME' ]
         self.cmd( self.pox, 'forwarding.proj_learn &' )
