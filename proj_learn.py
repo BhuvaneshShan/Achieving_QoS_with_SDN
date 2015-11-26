@@ -23,11 +23,14 @@ log = core.getLogger()
 s1_dpid=0
 s2_dpid=0
 reservation_matrix=[]
-#	q1	q2	q3
-#s1	0	0	0
-#s2	0	0	0
+#	q1	 q2	  q3
+#s1	FREE FREE FREE
+#s2	FREE FREE FREE
+#.
+#.
+#s6	FREE FREE FREE
 
-switch_count = 2 
+switch_count = 6 
 queue_count = 3
 MAX_BANDWIDTH = 10
 FREE = "free"
@@ -69,6 +72,7 @@ def _handle_PacketIn (event):
 		msg.match.dl_dst = packet.dst
 		#msg.actions.append(of.ofp_action_output(port = dst_port))
 		msg.actions.append(of.ofp_action_enqueue(port = dst_port, queue_id=getQidFromMatrix(str(packet.src))))
+		print("Msg has Port"+str(dst_port)+","+str(getQidFromMatrix(str(packet.src))))
 		event.connection.send(msg)
 		log.debug("Installing %s <-> %s" % (packet.src, packet.dst))
 	pass
@@ -80,7 +84,7 @@ def new_Connection(src_ip, dstn_ip, bandwidth):
 		minQIndex = getMinQueue(bandwidth) #gives queue number . index 0 - 1 mbps, 1 - 5mbps, 2 - 10mbps
 		qIds = []
 		for i in range(0,switch_count):
-			print("val:"+str(i)+","+str(minQIndex))
+			#print("val:"+str(i)+","+str(minQIndex))
 			if reservation_matrix[i][minQIndex] == FREE:
 				pass
 			else:
@@ -129,6 +133,7 @@ def getQidFromMatrix(srcip):
 		if reservation_matrix[0][i] == srcip:
 			qid = i
 	print("get qid from matrix returns "+str(qid)+" for "+srcip)
+	return qid
 	pass
 
 def launch ():
