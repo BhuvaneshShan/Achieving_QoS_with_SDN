@@ -20,9 +20,9 @@ import pox.openflow.libopenflow_01 as of
 from pox.lib.util import dpidToStr
 log = core.getLogger()
 
-s1_dpid=0
-s2_dpid=0
 reservation_matrix=[]
+avail_matrix=[]
+qbw = [1,5,10]
 #	q1	 q2	  q3
 #s1	FREE FREE FREE
 #s2	FREE FREE FREE
@@ -34,9 +34,16 @@ switch_count = 6
 queue_count = 3
 MAX_BANDWIDTH = 10
 FREE = "free"
+TEST = 1
 
 def _handle_ConnectionUp (event):
+	global TEST
 	print("Connection Up!")
+	if (TEST==1):
+		pathpres = new_Connection("10.0.0.1","10.0.0.4",1.5)
+	elif (TEST==2):
+		pathpres = new_Connection("10.0.0.2","10.0.0.6",2.5)
+	TEST += 1
 	pass
 
 inTable = {}
@@ -52,7 +59,6 @@ def _handle_PacketIn (event):
 		# We don't know where the destination is yet.  So, we'll just
 	    # send the packet out all ports (except the one it came in on!)
 	    # and hope the destination is out there somewhere. :)
-	    pathpres = new_Connection(str(packet.src),str(packet.dst),2)
 	    msg = of.ofp_packet_out(data = event.ofp)
 	    msg.actions.append(of.ofp_action_output(port = all_ports))
 	    event.connection.send(msg)
@@ -72,7 +78,7 @@ def _handle_PacketIn (event):
 		msg.match.dl_dst = packet.dst
 		#msg.actions.append(of.ofp_action_output(port = dst_port))
 		msg.actions.append(of.ofp_action_enqueue(port = dst_port, queue_id=getQidFromMatrix(str(packet.src))))
-		print("Msg has Port"+str(dst_port)+","+str(getQidFromMatrix(str(packet.src))))
+		print("Msg sent to"+str(event.connection.dpid)+": Port"+str(dst_port)+","+str(getQidFromMatrix(str(packet.src))))
 		event.connection.send(msg)
 		log.debug("Installing %s <-> %s" % (packet.src, packet.dst))
 	pass
@@ -81,43 +87,41 @@ def new_Connection(src_ip, dstn_ip, bandwidth):
 	pathPresent = True
 	print("in new connection")
 	if bandwidth<=MAX_BANDWIDTH:
-		minQIndex = getMinQueue(bandwidth) #gives queue number . index 0 - 1 mbps, 1 - 5mbps, 2 - 10mbps
+		minQIndex = getCorrectQueue(bandwidth) #gives queue number . index 0 - 1 mbps, 1 - 5mbps, 2 - 10mbps
 		qIds = []
-		for i in range(0,switch_count):
-			#print("val:"+str(i)+","+str(minQIndex))
-			if reservation_matrix[i][minQIndex] == FREE:
-				pass
-			else:
-				pathPresent = False
-				break
-		if pathPresent==True:
-			print('path present')
+		if minQIndex == -1:
+			pathPresent = False
+		else:
 			for i in range(0,switch_count):
-				reservation_matrix[i][minQIndex] = src_ip
+				if reservation_matrix[i][minQIndex] == FREE:
+					reservation_matrix[i][minQIndex] = src_ip
+				else:
+					reservation_matrix[i][minQIndex] = reservation_matrix[i][minQIndex] + "," + src_ip
+			#should not assign to all switch queus. but rather only to the switches involved in the connection
+			for i in range(0,switch_count):
+				avail_matrix[i][minQIndex] -= bandwidth
 	else:
 		pathPresent = False
 	print("new conn:")
+	printResMatrix()
+	return pathPresent
+
+def printResMatrix():
 	print("reservation matrix is")
 	for i in range(switch_count):
-		print("s"+str(i)+":"+reservation_matrix[i][0]+","+reservation_matrix[i][1]+","+reservation_matrix[i][2])
-	return pathPresent
-"""
-def getOutputPortOfSwitch(switch,dstn_ip):
-	if dstn_ip=="10.0.0.4":
-		if switch == 0: #switch 1
-			return 4
-		elif switch == 1:	#switch 2
-			return 2
-	else:
-		if switch == 1:
-			return 1
-		elif dstn_ip=="10.0.0.3":
-			return 3
-		elif dstn_ip=="10.0.0.2":
-			return 2
-		else:
-			return 1
-"""
+		print("s"+str(i)+": "+reservation_matrix[i][0]+";"+reservation_matrix[i][1]+";"+reservation_matrix[i][2])
+
+def getCorrectQueue(bandwidth):
+    que = getMinQueue(bandwidth)
+    val = 1
+    for i in range(switch_count):
+        if avail_matrix[i][que] < bandwidth:
+            val = 0
+            break
+    if val == 1:
+        return que
+    else:
+        return -1
 
 def getMinQueue(bandwidth):
 	if bandwidth <=1:
@@ -130,14 +134,20 @@ def getMinQueue(bandwidth):
 def getQidFromMatrix(srcip):
 	qid = 0
 	for i in range(queue_count):
-		if reservation_matrix[0][i] == srcip:
+		#should not check in switch1 but rather the concerned switches in the middle of the connection
+		#also srcip looks like  real MAC address "09:f3:87:d3:ab:3e" while res matrix has simple ip addr like "10.0.0.1", so qid 0 is returned.
+		if srcip in reservation_matrix[0][i]:
 			qid = i
-	print("get qid from matrix returns "+str(qid)+" for "+srcip)
+	#print("get qid from matrix returns "+str(qid)+" for "+srcip)
 	return qid
 	pass
 
 def launch ():
-	global reservation_matrix
+	global reservation_matrix, avail_matrix
 	reservation_matrix = [[FREE for x in range(0,queue_count)] for j in range(0,switch_count)]
+	avail_matrix = [[0 for x in range(0,queue_count)] for j in range(0,switch_count)]
+	for i in range(0,switch_count):
+		for j in range(0,queue_count):
+			avail_matrix[i][j] = qbw[j]
 	core.openflow.addListenerByName("ConnectionUp", _handle_ConnectionUp)
 	core.openflow.addListenerByName("PacketIn", _handle_PacketIn)
