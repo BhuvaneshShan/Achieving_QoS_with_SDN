@@ -14,13 +14,13 @@ class PoxBridge(Controller):
         "create the queues using the convenience util function"
         create_queues()
         "Start POX learning switch"
-        self.pox = '%s/pox/pox.py' % os.environ[ 'HOME' ]
-        self.cmd( self.pox, 'forwarding.proj_learn &' )
+        #self.pox = '%s/pox/pox.py' % os.environ[ 'HOME' ]
+        #self.cmd( self.pox, 'forwarding.proj_learn &' )
 
 
     def stop(self, *args, **kwargs):
         "Stop POX"
-        self.cmd( 'kill %' + self.pox )
+        #self.cmd( 'kill %' + self.pox )
 
 
 
