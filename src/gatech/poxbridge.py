@@ -15,7 +15,7 @@ class PoxBridge(Controller):
         create_queues()
         "Start POX learning switch"
         #self.pox = '%s/pox/pox.py' % os.environ[ 'HOME' ]
-        #self.cmd( self.pox, 'forwarding.proj_learn &' )
+        #self.cmd( self.pox, 'qos_controller &' )
 
 
     def stop(self, *args, **kwargs):
