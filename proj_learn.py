@@ -22,27 +22,19 @@ log = core.getLogger()
 
 s1_dpid=0
 s2_dpid=0
-matrix=0 #2 cols for switchs and 3 rows for bandwidth r1 = bw 1, r2 = bw 5, r3 = bw10
-#	s1	s2
-#q1	0	0
-#q2	0	0
-#q3	0	0
+reservation_matrix=[]
+#	q1	q2	q3
+#s1	0	0	0
+#s2	0	0	0
+
 switch_count = 2 
 queue_count = 3
 MAX_BANDWIDTH = 10
+FREE = "free"
 
 def _handle_ConnectionUp (event):
-	global s1_dpid, s2_dpid, matrix
-	print "ConnectionUp: ",dpidToStr(event.connection.dpid)
-	#remember the connection dpid for switch
-	for m in event.connection.features.ports:
-		if m.name == "s1-eth1":
-			s1_dpid = event.connection.dpid
-			print "s1_dpid=", s1_dpid
-		elif m.name == "s2-eth1":
-			s2_dpid = event.connection.dpid
-			print "s2_dpid=", s2_dpid
-	matrix = [[0 for x in range(queue_count)]for i in range(switch_count)]
+	print("Connection Up!")
+	pass
 
 inTable = {}
 all_ports = of.OFPP_FLOOD
@@ -54,9 +46,10 @@ def _handle_PacketIn (event):
 	dst_port = inTable.get((event.connection,packet.dst))
 	print('came into handle_packetin')
 	if dst_port is None:
-	    # We don't know where the destination is yet.  So, we'll just
+		# We don't know where the destination is yet.  So, we'll just
 	    # send the packet out all ports (except the one it came in on!)
 	    # and hope the destination is out there somewhere. :)
+	    pathpres = new_Connection(str(packet.src),str(packet.dst),2)
 	    msg = of.ofp_packet_out(data = event.ofp)
 	    msg.actions.append(of.ofp_action_output(port = all_ports))
 	    event.connection.send(msg)
@@ -68,36 +61,43 @@ def _handle_PacketIn (event):
 		msg.match.dl_src = packet.dst
 		msg.actions.append(of.ofp_action_output(port = event.port))
 		event.connection.send(msg)
-
 		# This is the packet that just came in -- we want to
 		# install the rule and also resend the packet.
 		msg = of.ofp_flow_mod()
 		msg.data = event.ofp # Forward the incoming packet
 		msg.match.dl_src = packet.src
 		msg.match.dl_dst = packet.dst
-		msg.actions.append(of.ofp_action_output(port = dst_port))
+		#msg.actions.append(of.ofp_action_output(port = dst_port))
+		msg.actions.append(of.ofp_action_enqueue(port = dst_port, queue_id=getQidFromMatrix(str(packet.src))))
 		event.connection.send(msg)
-
 		log.debug("Installing %s <-> %s" % (packet.src, packet.dst))
 	pass
 
-def new_Connection(src_ip, dstn_ip, bandwidth,event):
+def new_Connection(src_ip, dstn_ip, bandwidth):
+	pathPresent = True
 	print("in new connection")
 	if bandwidth<=MAX_BANDWIDTH:
 		minQIndex = getMinQueue(bandwidth) #gives queue number . index 0 - 1 mbps, 1 - 5mbps, 2 - 10mbps
 		qIds = []
-		pathPresent = True
 		for i in range(0,switch_count):
-			if matrix[minQIndex][i]!=0:
+			print("val:"+str(i)+","+str(minQIndex))
+			if reservation_matrix[i][minQIndex] == FREE:
+				pass
+			else:
 				pathPresent = False
 				break
-		if pathPresent==False:
-			return False
-		else:
+		if pathPresent==True:
 			print('path present')
+			for i in range(0,switch_count):
+				reservation_matrix[i][minQIndex] = src_ip
 	else:
-		return False;
-
+		pathPresent = False
+	print("new conn:")
+	print("reservation matrix is")
+	for i in range(switch_count):
+		print("s"+str(i)+":"+reservation_matrix[i][0]+","+reservation_matrix[i][1]+","+reservation_matrix[i][2])
+	return pathPresent
+"""
 def getOutputPortOfSwitch(switch,dstn_ip):
 	if dstn_ip=="10.0.0.4":
 		if switch == 0: #switch 1
@@ -113,25 +113,26 @@ def getOutputPortOfSwitch(switch,dstn_ip):
 			return 2
 		else:
 			return 1
-
+"""
 
 def getMinQueue(bandwidth):
 	if bandwidth <=1:
 		return 0
 	elif bandwidth<=5:
 		return 1
-	else:
+	elif bandwidth<=10:
 		return 2
 
-def getQidFromMatrix(srcip,switch):
-	for i in range(0,queue_count):
-		if(str(matrix[i][switch-1]) is srcip):
-			return i
-	return 0
+def getQidFromMatrix(srcip):
+	qid = 0
+	for i in range(queue_count):
+		if reservation_matrix[0][i] == srcip:
+			qid = i
+	print("get qid from matrix returns "+str(qid)+" for "+srcip)
 	pass
 
-
-
 def launch ():
+	global reservation_matrix
+	reservation_matrix = [[FREE for x in range(0,queue_count)] for j in range(0,switch_count)]
 	core.openflow.addListenerByName("ConnectionUp", _handle_ConnectionUp)
 	core.openflow.addListenerByName("PacketIn", _handle_PacketIn)
