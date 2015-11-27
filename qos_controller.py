@@ -157,45 +157,61 @@ def launch ():
     core.openflow.addListenerByName("PacketIn", _handle_PacketIn)
 
 
+#curl -H "Content-Type: application/json" -X POST -d '{"bandwidth":5}' http://localhost:6060
 class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     # Handler for the GET request
     def do_POST(self):
 
+
+
+        src_ip = None
+        dst_ip = None
+        bandwidth = None
+
         response={}
-        #get the body of POST request
-        content_len = int(self.headers.getheader('content-length', 0))
-        post_body = self.rfile.read(content_len)
-        request = json.loads(post_body);
-        src_ip = request['src_ip']
-        dst_ip = request['dst_ip']
-        bandwidth = request['bandwidth']
+        try:
+            #get the body of POST request
+            post_body = self.rfile.read(int(self.headers['Content-Length'])).decode("UTF-8")
+            request = json.loads(post_body);
+            src_ip = request.get('source_ip')
+            dst_ip = request.get('dest_ip')
+            bandwidth = request.get('bandwidth')
+        except Exception:
+            print "internal server error happened"
+            return
 
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
 
-        if src_ip == None | dst_ip == None | bandwidth | None:
+
+        if (src_ip is None) | (dst_ip is None) | (bandwidth is None):
             #we give an eror response back
+            print 'src_ip, dst_ip, bandwidth cannot be null'
             response['reservation'] = 'BAD_REQUEST'
-            str = json.dumps(response)
-            print str
+            json_str = json.dumps(response)
+
+            content = bytes(json_str)
             self.send_response(200)
-            self.wfile.write(str)
+            self.send_header("Content-type","application/json")
+            self.send_header("Content-Length", len(content))
+            self.end_headers()
+            self.wfile.write(content)
             return
 
         bandwidth = int(bandwidth)
-        bool_value = new_Connection(src_ip,dst_ip,bandwidth)
-
-        if(bandwidth):
+        bool_value = True
+        if(bool_value):
              response['reservation'] = 'OK'
 
         else:
              response['reservation'] = 'FAILED'
 
 
-        str = json.dumps(response)
-        print str
+        json_str = json.dumps(response)
+        content = bytes(json_str)
         self.send_response(200)
-        self.wfile.write(str)
+        self.send_header("Content-type","application/json")
+        self.send_header("Content-Length", len(content))
+        self.end_headers()
+        self.wfile.write(content)
         return
 
 

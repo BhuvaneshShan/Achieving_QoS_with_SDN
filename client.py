@@ -1,48 +1,67 @@
 # Import socket module
-import socket
-import time
-import codecs, json, time
+import getopt
+import json
 
-# load configuration file
-config = json.load(codecs.open('config.json', encoding='utf-8'))
+import sys
+import urllib2
 
 
-# Create a socket object
-def load_bw():
-    from os.path import exists
-    addr = 0
-    bandwidth = {}
-    for line in config['bw']:
-        bandwidth[addr] = line
-        addr = addr + 1
-    return bandwidth
+def main(argv):
+    CONTROLLER_IP = '127.0.0.1'
+    CONTROLLER_SERVICE_PORT = 6060
+
+    bandwidth = None
+    source_ip = None
+    destination_ip = None
+
+
+    #first get the program commandline params
+    try:
+        opts, args = getopt.getopt(argv,"hb:s:d:",["bandwidth=","sourceip=","destip="])
+        for opt,arg in opts:
+            if opt in ("-b","--bandwidth"):
+                bandwidth = arg
+            elif opt in ("-s","--sourceip"):
+                source_ip = arg
+            elif opt in ("-d","--destip"):
+                destination_ip = arg;
+
+    except getopt.GetoptError:
+        print "usage:  client.py -b <bandwidth>  -s <souce_ip> -d <destination_ip>"
+
+    #send the reservation request to the controller reservation service
+    request = {}
+    request['source_ip'] = source_ip
+    request['dest_ip'] = destination_ip
+    request['bandwidth'] = int(bandwidth)
+
+    request_str = json.dumps(request);
+    reservation_endpoint = 'http://'+ CONTROLLER_IP + ":" + str(CONTROLLER_SERVICE_PORT)
+    print 'contacting reservation server : ' + reservation_endpoint
+
+    req = urllib2.Request(reservation_endpoint)
+    req.add_header('Content-Type', 'application/json')
+    response = urllib2.urlopen(req,request_str)
+    data = response.read()
+    response_dict = json.loads(data)
+
+
+    if response_dict['reservation'] == 'BAD_REQUEST':
+        print "bad request params.."
+        return;
+    elif response_dict['reservation'] == 'FAILED':
+        print "reservation failed, try again"
+        return;
+    elif response_dict['reservation'] == 'OK':
+        print "reservation granted"
+        #if reservation granted, go ahead and send the retuest, else abort
+        #execute the file download command
+
+        return
+
 
 
 if __name__ == '__main__':
-    bandwidth = load_bw()
-    s = socket.socket()
+    main(sys.argv[1:])
 
-    timer1 = 10.0
-    bw = str(10)
-    timer = str(timer1)
-    # Define the port on which you want to connect
-    port = 12345
 
-    # connect to the server on local computer
-    s.connect(('127.0.0.1', port))
-
-    # receive data from the server
-    for i in range(0, len(bandwidth)):
-        s.send(str(bandwidth[i]))
-    """
-    s.send(bw + ' ' + timer)
-    start = time.time()
-    received = s.recv(6000)
-    elapsed = (time.time() - start)
-    if elapsed <= timer1:
-       print received, ' ',str(elapsed)
-    else:
-       print 'time out'
-    """
-    # close the connection
-    s.close()
