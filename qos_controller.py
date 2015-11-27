@@ -44,11 +44,6 @@ inTable = {}
 all_ports = of.OFPP_FLOOD
 
 def _handle_ConnectionUp(event):
-
-    print "starting the reservation http service"
-    reservationService = ReservationServiceThread()
-    reservationService.setDaemon(True)
-    reservationService.start()
     pass
 
 
@@ -147,6 +142,12 @@ def getQidFromMatrix(srcip):
     pass
 
 def launch ():
+
+    print "starting the reservation http service inside launch method"
+    reservationService = ReservationServiceThread()
+    reservationService.setDaemon(True)
+    reservationService.start()
+
     global reservation_matrix, avail_matrix
     reservation_matrix = [[FREE for x in range(0,queue_count)] for j in range(0,switch_count)]
     avail_matrix = [[0 for x in range(0,queue_count)] for j in range(0,switch_count)]
@@ -197,7 +198,7 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             return
 
         bandwidth = int(bandwidth)
-        bool_value = True
+        bool_value = new_Connection(src_ip,dst_ip,bandwidth)
         if(bool_value):
              response['reservation'] = 'OK'
 
