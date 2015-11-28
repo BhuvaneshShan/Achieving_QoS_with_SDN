@@ -28,13 +28,13 @@ log = core.getLogger()
 
 reservation_matrix=[]
 avail_matrix=[]
-qbw = [1,1,5,10]
-#   q1   q2   q3
-#s1 FREE FREE FREE
-#s2 FREE FREE FREE
+qbw = [1,1,5,10] #q0 is the default queue for any unreserved traffic
+#     q0    q1   q2   q3
+#s1 DEFAULT FREE FREE FREE
+#s2 DEFAULT FREE FREE FREE
 #.
 #.
-#s6 FREE FREE FREE
+#s6 DEFAULT FREE FREE FREE
 
 switch_count = 6 
 queue_count = 3
