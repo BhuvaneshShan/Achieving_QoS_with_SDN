@@ -23,6 +23,14 @@ the script. change it accordingly before running.
 
 python client.py -b 5 -s 10.0.0.1 -d 10.0.0.4
 
+###Changes
+####Nov 28, 2015 11.09am
+
+1. Default queue (index 0) has been added so that unreserved traffic can use it
+
+2. Queues (1Mbps, 5Mbps and 10Mbps) are indexed as 1,2 and 3 in the reservation and availabilty matrices
+
+3. IPvsMAC addressing problem resolved. 
 
 
 
