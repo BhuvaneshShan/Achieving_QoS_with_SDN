@@ -27,12 +27,12 @@ class ExpTopo(Topo):
         s6 = self.addSwitch('s6')
 
         # add links
-        self.addLink(s1, h1,bw=1,delay='5ms')
-        self.addLink(s2, h2,bw=2,delay='5ms')
-        self.addLink(s3, h3,bw=3,delay='5ms')
-        self.addLink(s4, h4,bw=4,delay='5ms')
-        self.addLink(s5, h5,bw=5,delay='5ms')
-        self.addLink(s6, h6,bw=6,delay='5ms')
+        self.addLink(s1, h1,bw=10,delay='5ms')
+        self.addLink(s2, h2,bw=20,delay='5ms')
+        self.addLink(s3, h3,bw=30,delay='5ms')
+        self.addLink(s4, h4,bw=40,delay='5ms')
+        self.addLink(s5, h5,bw=50,delay='5ms')
+        self.addLink(s6, h6,bw=60,delay='5ms')
 
         self.addLink(s1, s2)
         self.addLink(s2, s3)

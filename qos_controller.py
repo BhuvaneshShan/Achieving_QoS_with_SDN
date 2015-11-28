@@ -22,17 +22,19 @@ import threading
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.util import dpidToStr
+from pox.lib.packet.ipv4 import ipv4
+from pox.lib.packet.arp import arp
 log = core.getLogger()
 
 reservation_matrix=[]
 avail_matrix=[]
-qbw = [1,5,10]
-#	q1	 q2	  q3
-#s1	FREE FREE FREE
-#s2	FREE FREE FREE
+qbw = [1,1,5,10]
+#   q1   q2   q3
+#s1 FREE FREE FREE
+#s2 FREE FREE FREE
 #.
 #.
-#s6	FREE FREE FREE
+#s6 FREE FREE FREE
 
 switch_count = 6 
 queue_count = 3
@@ -46,14 +48,41 @@ all_ports = of.OFPP_FLOOD
 def _handle_ConnectionUp(event):
     pass
 
+def getSrcIPandARP (packet):
+    #Gets source IPv4 address for packets that have one (IPv4 and ARP)
+    #Returns (ip_address, has_arp).  If no IP, returns (None, False).
+    if isinstance(packet, ipv4):
+        log.debug("IP %s => %s",str(packet.srcip),str(packet.dstip))
+        #print("IPv4:src"+str(packet.srcip)+",dstn:"+str(packet.dstip))
+        return ( packet.dstip, False )
+    elif isinstance(packet, arp):
+        log.debug("ARP %s %s => %s",
+                {arp.REQUEST:"request",arp.REPLY:"reply"}.get(packet.opcode,
+                    'op:%i' % (packet.opcode,)),
+               str(packet.protosrc), str(packet.protodst))
+        #print("ARP:src"+str(packet.protosrc)+",dstn:"+str(packet.protodst))
+        if (packet.hwtype == arp.HW_TYPE_ETHERNET and
+          packet.prototype == arp.PROTO_TYPE_IP and
+          packet.protosrc != 0):
+            return ( packet.protodst, True )
+    return ( None, False )
 
 
 def _handle_PacketIn (event):
     global s1_dpid, s2_dpid
+    #print("payload:"+str(dir(event.parsed.payload)))
+    #print("hwsrc:"+str(event.parsed.payload.hwsrc))
+    #print("hwdst:"+str(event.parsed.payload.hwdst))
     packet = event.parsed
+    (pckt_srcip, hasARP) = getSrcIPandARP(packet.next)
+    if pckt_srcip is None:
+        pckt_srcip = "10.0.0.0"
+        #print("Pckt_srcip:"+str(pckt_srcip))
+        #self.updateIPInfo(pckt_srcip,macEntry,hasARP)
+        print("pckt_srcip is NONE and is set to 10.0.0.0!")
     inTable[(event.connection,packet.src)] = event.port
     dst_port = inTable.get((event.connection,packet.dst))
-    print('came into handle_packetin')
+    #print('came into handle_packetin')
     if dst_port is None:
         # We don't know where the destination is yet.  So, we'll just
         # send the packet out all ports (except the one it came in on!)
@@ -76,8 +105,14 @@ def _handle_PacketIn (event):
         msg.match.dl_src = packet.src
         msg.match.dl_dst = packet.dst
         #msg.actions.append(of.ofp_action_output(port = dst_port))
-        msg.actions.append(of.ofp_action_enqueue(port = dst_port, queue_id=getQidFromMatrix(str(packet.src))))
-        print("Msg sent to"+str(event.connection.dpid)+": Port"+str(dst_port)+","+str(getQidFromMatrix(str(packet.src))))
+        #ipv4_packet = event.parsed.find("ipv4")
+        #if ipv4_packet is None:
+        #    print("ipv4 none")
+        #ipv4_src_ip = ipv4_packet.srcip
+        #print("ipv4 src ip :"+str(ipv4_src_ip))
+        msg.actions.append(of.ofp_action_enqueue(port = dst_port, queue_id=getQidFromMatrix(str(pckt_srcip))))
+        print("Msg sent to Switch "+str(event.connection.dpid)+": Port"+str(dst_port)+", Queue"+str(getQidFromMatrix(str(pckt_srcip))))
+        #print("srcip:"+str(packet.src))
         event.connection.send(msg)
         log.debug("Installing %s <-> %s" % (packet.src, packet.dst))
     pass
@@ -108,7 +143,7 @@ def new_Connection(src_ip, dstn_ip, bandwidth):
 def printResMatrix():
     print("reservation matrix is")
     for i in range(switch_count):
-        print("s"+str(i)+": "+reservation_matrix[i][0]+";"+reservation_matrix[i][1]+";"+reservation_matrix[i][2])
+        print("s"+str(i)+": "+reservation_matrix[i][0]+";"+reservation_matrix[i][1]+";"+reservation_matrix[i][2]+";"+reservation_matrix[i][3])
 
 def getCorrectQueue(bandwidth):
     que = getMinQueue(bandwidth)
@@ -124,22 +159,21 @@ def getCorrectQueue(bandwidth):
 
 def getMinQueue(bandwidth):
     if bandwidth <=1:
-        return 0
-    elif bandwidth<=5:
         return 1
-    elif bandwidth<=10:
+    elif bandwidth<=5:
         return 2
+    elif bandwidth<=10:
+        return 3
 
 def getQidFromMatrix(srcip):
     qid = 0
-    for i in range(queue_count):
-        #should not check in switch1 but rather the concerned switches in the middle of the connection
-        #also srcip looks like  real MAC address "09:f3:87:d3:ab:3e" while res matrix has simple ip addr like "10.0.0.1", so qid 0 is returned.
+    #print("checking Qid for srcip :"+str(srcip))
+    for i in range(1,queue_count+1):
+        #print("Res matrix entry chekcing:"+str(reservation_matrix[0][i]))
         if srcip in reservation_matrix[0][i]:
             qid = i
     #print("get qid from matrix returns "+str(qid)+" for "+srcip)
     return qid
-    pass
 
 def launch ():
 
@@ -149,10 +183,10 @@ def launch ():
     reservationService.start()
 
     global reservation_matrix, avail_matrix
-    reservation_matrix = [[FREE for x in range(0,queue_count)] for j in range(0,switch_count)]
-    avail_matrix = [[0 for x in range(0,queue_count)] for j in range(0,switch_count)]
+    reservation_matrix = [[FREE for x in range(0,queue_count+1)] for j in range(0,switch_count)] #+1 for default queue fro normal convo
+    avail_matrix = [[0 for x in range(0,queue_count+1)] for j in range(0,switch_count)]
     for i in range(0,switch_count):
-        for j in range(0,queue_count):
+        for j in range(0,queue_count+1):
             avail_matrix[i][j] = qbw[j]
     core.openflow.addListenerByName("ConnectionUp", _handle_ConnectionUp)
     core.openflow.addListenerByName("PacketIn", _handle_PacketIn)
