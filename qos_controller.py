@@ -36,6 +36,13 @@ qbw = [1,1,5,10] #q0 is the default queue for any unreserved traffic
 #.
 #s6 DEFAULT FREE FREE FREE
 
+#Modes
+DUMB = "DUMB"
+SMART = "SMART"
+
+MODE = SMART #"SMART"
+
+
 switch_count = 6 
 queue_count = 3
 MAX_BANDWIDTH = 10
@@ -71,8 +78,11 @@ def getSrcIPandARP (packet):
 def _handle_PacketIn (event):
     global s1_dpid, s2_dpid
     #print("payload:"+str(dir(event.parsed.payload)))
-    #print("hwsrc:"+str(event.parsed.payload.hwsrc))
+    #print("event.con:"+str(event.connection))
     #print("hwdst:"+str(event.parsed.payload.hwdst))
+    switch_id = event.connection.dpid
+    print "switch_id:"
+    print switch_id
     packet = event.parsed
     (pckt_srcip, hasARP) = getSrcIPandARP(packet.next)
     if pckt_srcip is None:
@@ -110,67 +120,154 @@ def _handle_PacketIn (event):
         #    print("ipv4 none")
         #ipv4_src_ip = ipv4_packet.srcip
         #print("ipv4 src ip :"+str(ipv4_src_ip))
-        msg.actions.append(of.ofp_action_enqueue(port = dst_port, queue_id=getQidFromMatrix(str(pckt_srcip))))
-        print("Msg sent to Switch "+str(event.connection.dpid)+": Port"+str(dst_port)+", Queue"+str(getQidFromMatrix(str(pckt_srcip))))
+        msg.actions.append(of.ofp_action_enqueue(port = dst_port, queue_id=getQidFromMatrix(str(pckt_srcip),switch_id-1))) #switch id -1 because it is the index in the matrix for that switch
+        print("Msg sent to Switch "+str(event.connection.dpid)+": Port"+str(dst_port)+", Queue"+str(getQidFromMatrix(str(pckt_srcip),switch_id-1)))
         #print("srcip:"+str(packet.src))
         event.connection.send(msg)
         log.debug("Installing %s <-> %s" % (packet.src, packet.dst))
     pass
 
 def new_Connection(src_ip, dstn_ip, bandwidth):
-    pathPresent = True
-    print("in new connection")
-    if bandwidth<=MAX_BANDWIDTH:
-        minQIndex = getCorrectQueue(bandwidth) #gives queue number . index 0 - 1 mbps, 1 - 5mbps, 2 - 10mbps
-        qIds = []
-        if minQIndex == -1:
-            pathPresent = False
+    if MODE==DUMB:
+        pathPresent = True
+        print("in new connection")
+        if bandwidth<=MAX_BANDWIDTH:
+            minQIndex = getCorrectQueue(bandwidth) #gives queue number . index 0 - 1 mbps, 1 - 5mbps, 2 - 10mbps
+            qIds = []
+            if minQIndex == -1:
+                pathPresent = False
+            else:
+                for i in range(0,switch_count):
+                    if reservation_matrix[i][minQIndex] == FREE:
+                        reservation_matrix[i][minQIndex] = src_ip
+                    else:
+                        reservation_matrix[i][minQIndex] = reservation_matrix[i][minQIndex] + "," + src_ip
+                #should not assign to all switch queus. but rather only to the switches involved in the connection
+                for i in range(0,switch_count):
+                    avail_matrix[i][minQIndex] -= bandwidth
         else:
-            for i in range(0,switch_count):
-                if reservation_matrix[i][minQIndex] == FREE:
-                    reservation_matrix[i][minQIndex] = src_ip
-                else:
-                    reservation_matrix[i][minQIndex] = reservation_matrix[i][minQIndex] + "," + src_ip
-            #should not assign to all switch queus. but rather only to the switches involved in the connection
-            for i in range(0,switch_count):
-                avail_matrix[i][minQIndex] -= bandwidth
-    else:
-        pathPresent = False
-    print("new conn:")
-    printResMatrix()
-    return pathPresent
+            pathPresent = False
+        print("new conn:")
+        printResMatrix()
+        return pathPresent
+    elif MODE==SMART:
+        pathPresent = True
+        print("in new connection, with src_ip: " + src_ip)
+        if bandwidth<=MAX_BANDWIDTH:
+            qIds = []
+            questr = getCorrectQueue(bandwidth,src_ip)
+            if questr == "FALSE" or questr == "":
+                pathPresent = False
+            else:
+                questrlist = questr.split(",")
+                qIndex = [0 for x in range(len(questrlist))]
+                print questrlist
+                i=0
+                for q in questrlist:
+                    qIndex[i] = int(q)
+                    i +=1
+                #check for starting and ending indices, assuming unidrectional
+                for i in range(switch_count):
+                    if src_ip == "10.0.0." + str(i+1):
+                        source =i
+                    if dstn_ip == "10.0.0." + str(i+1):
+                        destination = i
+                        break
+                for i in range(source, destination+1):
+                    if reservation_matrix[i][qIndex[i]]== FREE:
+                        reservation_matrix[i][qIndex[i]] = src_ip
+                    else:
+                        reservation_matrix[i][qIndex[i]] = reservation_matrix[i][qIndex[i]] + "," + src_ip
+                for i in range(source, destination+1):
+                    avail_matrix[i][qIndex[i]] -= bandwidth
+        else:
+            pathPresent = False
+        print("new conn:")
+        printResMatrix()
+        return pathPresent
+    pass
 
 def printResMatrix():
     print("reservation matrix is")
     for i in range(switch_count):
         print("s"+str(i)+": "+reservation_matrix[i][0]+";"+reservation_matrix[i][1]+";"+reservation_matrix[i][2]+";"+reservation_matrix[i][3])
 
-def getCorrectQueue(bandwidth):
-    que = getMinQueue(bandwidth)
-    val = 1
-    for i in range(switch_count):
-        if avail_matrix[i][que] < bandwidth:
-            val = 0
-            break
-    if val == 1:
-        return que
-    else:
+def getCorrectQueue(bandwidth,src_ip=None):
+    if MODE==DUMB:
+        que = getMinQueue(bandwidth)
+        val = 1
+        for i in range(switch_count):
+            if avail_matrix[i][que] < bandwidth:
+                val = 0
+                break
+        if val == 1:
+            return que
+        else:
+            return -1
+    elif MODE == SMART:
+        que = getMinQueue(bandwidth, src_ip)
+        print "start with queue: " + str(que)
+        if que == -1:
+            return "FALSE"
+        val = 1
+        questr = ""
+        for i in range(switch_count):
+            if avail_matrix[i][que] >= bandwidth:
+                if questr == "":
+                    questr = str(que)
+                else:
+                    questr = questr + " , " + str(que)
+            elif avail_matrix[i][nextQueueNumber(que,1)] >= bandwidth:
+                if questr == "":
+                    questr = str(nextQueueNumber(que,1))
+                else:
+                    questr = questr + " , " + str(nextQueueNumber(que,1))
+                que = nextQueueNumber(que,1)
+            elif avail_matrix[i][nextQueueNumber(que,2)] >= bandwidth:
+                if questr == "":
+                    questr = str(nextQueueNumber(que,2))
+                else:
+                    questr = questr + " , " + str(nextQueueNumber(que,2))
+                que = nextQueueNumber(que,1)
+            else:
+                val = 0
+                break
+        if val == 1:
+            return questr
+        else:
+            return "FALSE"
+    pass
+
+def nextQueueNumber(que,n):
+    que = (que+n)%queue_count+1
+    return que+1
+
+
+def getMinQueue(bandwidth, src_ip=None):
+    if MODE==DUMB:
+        if bandwidth <=1:
+            return 1
+        elif bandwidth<=5:
+            return 2
+        elif bandwidth<=10:
+            return 3
+    elif MODE==SMART:
+        for i in range(switch_count):
+        #check which queue to start with for that particular switch
+            if src_ip == ("10.0.0."+str(i+1)):
+                for j in range(1,queue_count+1):
+                    print avail_matrix[i][j]
+                    if avail_matrix[i][j] >= bandwidth:
+                        return j
         return -1
+    pass
 
-def getMinQueue(bandwidth):
-    if bandwidth <=1:
-        return 1
-    elif bandwidth<=5:
-        return 2
-    elif bandwidth<=10:
-        return 3
-
-def getQidFromMatrix(srcip):
+def getQidFromMatrix(srcip,switch_id):
     qid = 0
     #print("checking Qid for srcip :"+str(srcip))
     for i in range(1,queue_count+1):
         #print("Res matrix entry chekcing:"+str(reservation_matrix[0][i]))
-        if srcip in reservation_matrix[0][i]:
+        if srcip in reservation_matrix[switch_id][i]:
             qid = i
     #print("get qid from matrix returns "+str(qid)+" for "+srcip)
     return qid
