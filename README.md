@@ -24,6 +24,13 @@ the script. change it accordingly before running.
 python client.py -b 5 -s 10.0.0.1 -d 10.0.0.4
 
 ###Changes
+####Nov 30, 2015 12.21am
+1. Dumb and Smart controllers integrated into one file
+2. change the MODE variable to DUMB or SMART to use as per need.
+3. debugged. still edge cases are to be debugged.
+4. iperf pending
+
+
 ####Nov 28, 2015 11.09am
 
 1. Default queue (index 0) has been added so that unreserved traffic can use it
