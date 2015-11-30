@@ -1,6 +1,33 @@
 # Achieving_QoS_with_SDN
 computer networks project - software defined networking
 
+###iperf for data collection
+1. I found a way to get data. No change in code. just pull the latest from repo
+2. in mininet xterm window, open window for each host using 
+
+xterm h1 h2 h3 h4 h5 h6
+
+3. reserve a path using client.py
+
+eg: sudo python client.py -b 3 -s 10.0.0.1 -d 10.0.0.4
+
+4. Now data needs to be sent from h1 to h4
+5. In h1 (server sending data) xterm window type,
+
+iperf -s
+
+6. In h4 (client receiving data) xterm window type,
+
+iperf -c <src/server ip addrs>
+
+eg: iperf -c 10.0.0.1
+
+Now h4 starts hearing from h1.
+
+7. I think we need to add -p <port number> to the above commands to get the actual bandwindth the network allows.
+8. check other options using iperf --help
+
+
 ### Quickstart Steps
 
 
